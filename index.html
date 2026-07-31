@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Monster Truck Hillclimb</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="hud">
+        <div id="distance">0 m</div>
+        <button id="reset" title="Reset run">&#8635;</button>
+      </div>
+      <div id="controls">
+        <button id="btn-reverse" class="ctrl-btn">&#9664;</button>
+        <button id="btn-gas" class="ctrl-btn">&#9654;</button>
+      </div>
+      <div id="overlay" class="hidden">
+        <div id="overlay-text">Crashed!</div>
+        <button id="overlay-retry">Retry</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
