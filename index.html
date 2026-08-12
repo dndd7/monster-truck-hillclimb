@@ -3,14 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Monster Truck Hillclimb</title>
   </head>
   <body>
     <div id="app">
       <canvas id="game"></canvas>
       <div id="hud">
-        <div id="distance">0 m</div>
+        <div id="hud-left">
+          <div id="distance">0 m</div>
+          <div id="speed">0 km/h</div>
+        </div>
         <button id="reset" title="Reset run">&#8635;</button>
       </div>
       <div id="controls">

@@ -2,9 +2,9 @@ import Matter from 'matter-js';
 
 const { Bodies, Body, Composite, Constraint } = Matter;
 
-const CHASSIS_WIDTH = 130;
+const CHASSIS_WIDTH = 136;
 const CHASSIS_HEIGHT = 34;
-const WHEEL_RADIUS = 30;
+const WHEEL_RADIUS = 38;
 const WHEEL_OFFSET_X = CHASSIS_WIDTH * 0.36;
 const WHEEL_OFFSET_Y = CHASSIS_HEIGHT * 0.55 + WHEEL_RADIUS * 0.55;
 const MAX_WHEEL_SPEED = 22;

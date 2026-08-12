@@ -1,13 +1,14 @@
 import './style.css';
 import Matter from 'matter-js';
 import { Terrain, BASE_GROUND_Y } from './terrain';
-import { Truck, CHASSIS_WIDTH, WHEEL_RADIUS } from './truck';
+import { Truck, CHASSIS_WIDTH, CHASSIS_HEIGHT, WHEEL_RADIUS } from './truck';
 
 const { Engine, Events } = Matter;
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const distanceEl = document.getElementById('distance')!;
+const speedEl = document.getElementById('speed')!;
 const resetButton = document.getElementById('reset')!;
 const overlay = document.getElementById('overlay')!;
 const overlayText = document.getElementById('overlay-text')!;
@@ -140,6 +141,8 @@ function resetRun() {
   crashTimerMs = 0;
   rearContacts = 0;
   frontContacts = 0;
+  prevDistanceM = 0;
+  displaySpeedKmh = 0;
   truck.reset();
   overlay.classList.add('hidden');
 }
@@ -159,6 +162,7 @@ function triggerCrash() {
 // --- canvas sizing ---
 let viewWidth = 0;
 let viewHeight = 0;
+let skyGradient: CanvasGradient | null = null;
 
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -169,9 +173,16 @@ function resize() {
   canvas.style.width = `${viewWidth}px`;
   canvas.style.height = `${viewHeight}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  skyGradient = ctx.createLinearGradient(0, 0, 0, viewHeight);
+  skyGradient.addColorStop(0, '#4fa8dd');
+  skyGradient.addColorStop(1, '#bfe6ff');
 }
 
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
+window.visualViewport?.addEventListener('resize', resize);
+document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 resize();
 
 // --- camera ---
@@ -186,25 +197,31 @@ function updateCamera() {
 
 // --- rendering ---
 function drawSky() {
-  const gradient = ctx.createLinearGradient(0, 0, 0, viewHeight);
-  gradient.addColorStop(0, '#4fa8dd');
-  gradient.addColorStop(1, '#bfe6ff');
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = skyGradient!;
   ctx.fillRect(0, 0, viewWidth, viewHeight);
 }
+
+let terrainPoints: Matter.Vector[] = [];
 
 function drawTerrain() {
   const startX = camera.x - 40;
   const endX = camera.x + viewWidth + 40;
   const step = 14;
 
-  const points: Matter.Vector[] = [];
-  for (let x = startX; x <= endX; x += step) {
-    points.push({ x, y: terrain.heightAt(x) });
+  let count = 0;
+  for (let x = startX; x <= endX; x += step, count++) {
+    const p = terrainPoints[count] ?? (terrainPoints[count] = { x: 0, y: 0 });
+    p.x = x;
+    p.y = terrain.heightAt(x);
   }
-  if (points[points.length - 1].x < endX) {
-    points.push({ x: endX, y: terrain.heightAt(endX) });
+  if (terrainPoints[count - 1].x < endX) {
+    const p = terrainPoints[count] ?? (terrainPoints[count] = { x: 0, y: 0 });
+    p.x = endX;
+    p.y = terrain.heightAt(endX);
+    count++;
   }
+  terrainPoints.length = count;
+  const points = terrainPoints;
 
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
@@ -228,56 +245,145 @@ function drawTerrain() {
   ctx.stroke();
 }
 
+const TREAD_COUNT = 12;
+
 function drawWheel(body: Matter.Body) {
+  const r = WHEEL_RADIUS;
   ctx.save();
   ctx.translate(body.position.x, body.position.y);
   ctx.rotate(body.angle);
+
+  // tire body
   ctx.beginPath();
-  ctx.arc(0, 0, WHEEL_RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = '#1b1b1f';
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a1c';
   ctx.fill();
+
+  // chunky knobby tread lugs around the outer edge
+  ctx.fillStyle = '#0c0c0d';
+  for (let i = 0; i < TREAD_COUNT; i++) {
+    const a = (i / TREAD_COUNT) * Math.PI * 2;
+    ctx.save();
+    ctx.rotate(a);
+    ctx.fillRect(r * 0.8, -r * 0.16, r * 0.24, r * 0.32);
+    ctx.restore();
+  }
+
+  // sidewall
   ctx.beginPath();
-  ctx.arc(0, 0, WHEEL_RADIUS * 0.4, 0, Math.PI * 2);
-  ctx.fillStyle = '#8a8f9a';
+  ctx.arc(0, 0, r * 0.74, 0, Math.PI * 2);
+  ctx.fillStyle = '#26262a';
   ctx.fill();
-  ctx.strokeStyle = '#55595f';
-  ctx.lineWidth = 4;
+
+  // metallic rim
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2);
+  ctx.fillStyle = '#b9bdc6';
+  ctx.fill();
+
+  ctx.strokeStyle = '#7d818a';
+  ctx.lineWidth = r * 0.09;
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(a) * WHEEL_RADIUS * 0.85, Math.sin(a) * WHEEL_RADIUS * 0.85);
+    ctx.lineTo(Math.cos(a) * r * 0.38, Math.sin(a) * r * 0.38);
     ctx.stroke();
   }
+
+  // hub cap
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.13, 0, Math.PI * 2);
+  ctx.fillStyle = '#4a4d54';
+  ctx.fill();
+
   ctx.restore();
 }
 
 function drawChassis() {
   const body = truck.chassis;
+  const w = CHASSIS_WIDTH;
+  const h = CHASSIS_HEIGHT;
+
   ctx.save();
   ctx.translate(body.position.x, body.position.y);
   ctx.rotate(body.angle);
 
-  ctx.fillStyle = '#e8543e';
+  // main body
+  ctx.fillStyle = '#d8402c';
+  roundRectPath(-w / 2, -h / 2, w, h, 9);
+  ctx.fill();
+
+  // racing stripe
+  ctx.fillStyle = '#f2a13a';
+  ctx.fillRect(-w / 2, -h * 0.18, w, h * 0.22);
+
+  // front/rear bumpers
+  ctx.fillStyle = '#2b2b2e';
+  ctx.fillRect(-w / 2 - 4, h * 0.1, 10, h * 0.5);
+  ctx.fillRect(w / 2 - 6, h * 0.1, 10, h * 0.5);
+
+  // front grille (left end, between the headlight and bumper)
+  ctx.fillStyle = '#9aa0aa';
+  ctx.fillRect(-w / 2 - 6, -h * 0.08, 12, h * 0.32);
+  ctx.strokeStyle = '#3a3a3d';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const y = -h * 0.04 + i * (h * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 - 6, y);
+    ctx.lineTo(-w / 2 + 6, y);
+    ctx.stroke();
+  }
+
+  // headlights at both ends (either can be "front")
+  ctx.fillStyle = '#ffe27a';
   ctx.beginPath();
-  const w = CHASSIS_WIDTH;
-  const h = 34;
-  const r = 8;
-  ctx.moveTo(-w / 2 + r, -h / 2);
-  ctx.arcTo(w / 2, -h / 2, w / 2, h / 2, r);
-  ctx.arcTo(w / 2, h / 2, -w / 2, h / 2, r);
-  ctx.arcTo(-w / 2, h / 2, -w / 2, -h / 2, r);
-  ctx.arcTo(-w / 2, -h / 2, w / 2, -h / 2, r);
+  ctx.arc(-w / 2 + 8, -h * 0.18, 4, 0, Math.PI * 2);
+  ctx.arc(w / 2 - 8, -h * 0.18, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // cab roof
+  ctx.fillStyle = '#c23222';
+  roundRectPath(-w * 0.24, -h * 1.7, w * 0.48, h * 0.3, 4);
+  ctx.fill();
+
+  // angled windshield
+  ctx.fillStyle = '#a9dcf5';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.19, -h * 1.4);
+  ctx.lineTo(w * 0.19, -h * 1.4);
+  ctx.lineTo(w * 0.15, -h * 0.55);
+  ctx.lineTo(-w * 0.15, -h * 0.55);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = '#bfe6ff';
-  ctx.fillRect(-w * 0.12, -h * 1.55, w * 0.34, h * 1.1);
+  // exhaust stack
+  ctx.fillStyle = '#4a4d54';
+  ctx.fillRect(w * 0.32, -h * 1.9, 6, h * 1.4);
 
-  ctx.fillStyle = '#c23f2c';
-  ctx.fillRect(-w * 0.16, -h * 1.6, w * 0.42, h * 0.32);
+  // roll cage, framing outside the cab so it stays visible over the roof
+  ctx.strokeStyle = '#3a3a3d';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.29, -h * 0.4);
+  ctx.lineTo(-w * 0.29, -h * 1.85);
+  ctx.lineTo(w * 0.29, -h * 1.85);
+  ctx.lineTo(w * 0.29, -h * 0.4);
+  ctx.stroke();
 
   ctx.restore();
+}
+
+function roundRectPath(x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function render() {
@@ -318,6 +424,9 @@ function checkCrash(dt: number) {
   }
 }
 
+let prevDistanceM = 0;
+let displaySpeedKmh = 0;
+
 function tick(now: number) {
   const frameDt = Math.min(100, now - lastTime);
   lastTime = now;
@@ -339,6 +448,13 @@ function tick(now: number) {
 
   const distanceM = Math.max(0, (truck.position.x - SPAWN_X) / PIXELS_PER_METER);
   distanceEl.textContent = `${Math.round(distanceM)} m`;
+
+  if (frameDt > 0) {
+    const instantKmh = ((distanceM - prevDistanceM) / (frameDt / 1000)) * 3.6;
+    displaySpeedKmh += (instantKmh - displaySpeedKmh) * 0.15;
+  }
+  prevDistanceM = distanceM;
+  speedEl.textContent = `${Math.max(0, Math.round(displaySpeedKmh))} km/h`;
 
   requestAnimationFrame(tick);
 }
