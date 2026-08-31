@@ -1,6 +1,6 @@
 import './style.css';
 import Matter from 'matter-js';
-import { Terrain, BASE_GROUND_Y } from './terrain';
+import { Terrain, TERRAIN_PROFILES, BASE_GROUND_Y } from './terrain';
 import { Truck, CHASSIS_WIDTH, CHASSIS_HEIGHT, WHEEL_RADIUS } from './truck';
 
 const { Engine, Events } = Matter;
@@ -10,6 +10,9 @@ const ctx = canvas.getContext('2d')!;
 const distanceEl = document.getElementById('distance')!;
 const speedEl = document.getElementById('speed')!;
 const resetButton = document.getElementById('reset')!;
+const modeButton = document.getElementById('mode-btn')!;
+const modeSelect = document.getElementById('mode-select')!;
+const modeOptions = document.querySelectorAll<HTMLButtonElement>('.mode-option');
 const overlay = document.getElementById('overlay')!;
 const overlayText = document.getElementById('overlay-text')!;
 const overlayRetry = document.getElementById('overlay-retry')!;
@@ -18,19 +21,20 @@ const btnReverse = document.getElementById('btn-reverse')!;
 
 const PIXELS_PER_METER = 30;
 const SPAWN_X = 100;
-const FLIP_ANGLE = 2.15;
+const FLIP_ANGLE = 0.55;
 const CRASH_HOLD_MS = 700;
 const FALL_KILL_DISTANCE = 500;
 
 const engine = Engine.create();
 engine.gravity.y = 1;
 
-const terrain = new Terrain(engine.world);
+let terrain = new Terrain(engine.world, TERRAIN_PROFILES.hills);
 const truck = new Truck(engine.world, SPAWN_X, BASE_GROUND_Y - 90);
 
 let bestDistanceM = 0;
 let crashed = false;
 let crashTimerMs = 0;
+let started = false;
 
 // --- contact tracking (airborne detection) ---
 let rearContacts = 0;
@@ -149,6 +153,26 @@ function resetRun() {
 
 resetButton.addEventListener('click', resetRun);
 overlayRetry.addEventListener('click', resetRun);
+
+function selectMode(key: string) {
+  const profile = TERRAIN_PROFILES[key];
+  if (!profile) return;
+  terrain.clear();
+  terrain = new Terrain(engine.world, profile);
+  resetRun();
+  terrain.update(truck.position.x);
+  started = true;
+  modeSelect.classList.add('hidden');
+}
+
+modeButton.addEventListener('click', () => {
+  started = false;
+  modeSelect.classList.remove('hidden');
+});
+
+for (const option of modeOptions) {
+  option.addEventListener('click', () => selectMode(option.dataset.mode!));
+}
 
 function triggerCrash() {
   if (crashed) return;
@@ -433,7 +457,7 @@ function tick(now: number) {
   accumulator += frameDt;
 
   while (accumulator >= FIXED_DT) {
-    if (!crashed) {
+    if (!crashed && started) {
       const airborne = rearContacts === 0 && frontContacts === 0;
       truck.applyInput(inputDirection, airborne);
       Engine.update(engine, FIXED_DT);
@@ -442,7 +466,7 @@ function tick(now: number) {
     accumulator -= FIXED_DT;
   }
 
-  if (!crashed) terrain.update(truck.position.x);
+  if (!crashed && started) terrain.update(truck.position.x);
   updateCamera();
   render();
 

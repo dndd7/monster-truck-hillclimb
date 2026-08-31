@@ -17,7 +17,10 @@
           <div id="distance">0 m</div>
           <div id="speed">0 km/h</div>
         </div>
-        <button id="reset" title="Reset run">&#8635;</button>
+        <div id="hud-right">
+          <button id="mode-btn" title="Change terrain">&#9776;</button>
+          <button id="reset" title="Reset run">&#8635;</button>
+        </div>
       </div>
       <div id="controls">
         <button id="btn-reverse" class="ctrl-btn">&#9664;</button>
@@ -26,6 +29,23 @@
       <div id="overlay" class="hidden">
         <div id="overlay-text">Crashed!</div>
         <button id="overlay-retry">Retry</button>
+      </div>
+      <div id="mode-select">
+        <div id="mode-title">Choose your terrain</div>
+        <div id="mode-list">
+          <button class="mode-option" data-mode="plains">
+            <span class="mode-name">Plains</span>
+            <span class="mode-desc">Gentle rolling hills. No jumps.</span>
+          </button>
+          <button class="mode-option" data-mode="hills">
+            <span class="mode-name">Hills</span>
+            <span class="mode-desc">Steeper terrain, occasional jumps.</span>
+          </button>
+          <button class="mode-option" data-mode="offroad">
+            <span class="mode-name">Offroad</span>
+            <span class="mode-desc">Rough and steep, frequent launch ramps.</span>
+          </button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
