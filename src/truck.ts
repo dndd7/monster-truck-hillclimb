@@ -12,6 +12,12 @@ const MOTOR_TORQUE = 0.32;
 const MAX_AIR_TILT_SPEED = 3.5;
 const AIR_TILT_TORQUE = 0.02;
 
+// NOS boosts climbing torque only, not top speed — so once it runs out there's
+// no lingering extra speed to coast on, and it settles back to normal quickly.
+const NOS_TORQUE_BOOST = 0.3;
+const NOS_DEPLETE_PER_MS = 1 / 2200;
+const NOS_REFILL_PER_MS = 1 / 24000;
+
 export class Truck {
   readonly chassis: Matter.Body;
   readonly wheelRear: Matter.Body;
@@ -20,6 +26,9 @@ export class Truck {
   private readonly constraintFront: Matter.Constraint;
   private readonly spawnX: number;
   private readonly spawnY: number;
+  private nosFuel = 1;
+  private nosActive = false;
+  private nosLockedOut = false;
 
   constructor(world: Matter.World, x: number, y: number) {
     this.spawnX = x;
@@ -45,8 +54,9 @@ export class Truck {
       label: 'wheel',
     };
 
-    this.wheelRear = Bodies.circle(x - WHEEL_OFFSET_X, y + WHEEL_OFFSET_Y, WHEEL_RADIUS, wheelOptions);
-    this.wheelFront = Bodies.circle(x + WHEEL_OFFSET_X, y + WHEEL_OFFSET_Y, WHEEL_RADIUS, wheelOptions);
+    const restY = y + WHEEL_OFFSET_Y;
+    this.wheelRear = Bodies.circle(x - WHEEL_OFFSET_X, restY, WHEEL_RADIUS, wheelOptions);
+    this.wheelFront = Bodies.circle(x + WHEEL_OFFSET_X, restY, WHEEL_RADIUS, wheelOptions);
 
     const suspension = { stiffness: 0.45, damping: 0.07, length: 0 };
 
@@ -74,11 +84,22 @@ export class Truck {
   }
 
   /** Drive the wheels (4WD) via bounded motor torque, or tilt the chassis in mid-air. */
-  applyInput(direction: -1 | 0 | 1, airborne: boolean) {
+  applyInput(direction: -1 | 0 | 1, airborne: boolean, nosRequested: boolean, dtMs: number) {
+    if (!nosRequested) this.nosLockedOut = false;
+    this.nosActive = nosRequested && !this.nosLockedOut && this.nosFuel > 0;
+    if (this.nosActive) {
+      this.nosFuel = Math.max(0, this.nosFuel - NOS_DEPLETE_PER_MS * dtMs);
+      if (this.nosFuel === 0) this.nosLockedOut = true;
+    } else {
+      this.nosFuel = Math.min(1, this.nosFuel + NOS_REFILL_PER_MS * dtMs);
+    }
+
+    const torque = MOTOR_TORQUE + (this.nosActive ? NOS_TORQUE_BOOST : 0);
+
     if (direction !== 0) {
       for (const wheel of [this.wheelRear, this.wheelFront]) {
         const governor = Math.max(0, 1 - Math.abs(wheel.angularVelocity) / MAX_WHEEL_SPEED);
-        wheel.torque += direction * MOTOR_TORQUE * governor;
+        wheel.torque += direction * torque * governor;
       }
     }
 
@@ -96,6 +117,15 @@ export class Truck {
     return this.chassis.angle;
   }
 
+  /** NOS fuel remaining, 0 to 1. */
+  get nosFuelLevel() {
+    return this.nosFuel;
+  }
+
+  get isNosActive() {
+    return this.nosActive;
+  }
+
   reset() {
     for (const body of [this.chassis, this.wheelRear, this.wheelFront]) {
       Body.setVelocity(body, { x: 0, y: 0 });
@@ -103,9 +133,13 @@ export class Truck {
     }
     Body.setAngle(this.chassis, 0);
     Body.setPosition(this.chassis, { x: this.spawnX, y: this.spawnY });
-    Body.setPosition(this.wheelRear, { x: this.spawnX - WHEEL_OFFSET_X, y: this.spawnY + WHEEL_OFFSET_Y });
-    Body.setPosition(this.wheelFront, { x: this.spawnX + WHEEL_OFFSET_X, y: this.spawnY + WHEEL_OFFSET_Y });
+    const restY = this.spawnY + WHEEL_OFFSET_Y;
+    Body.setPosition(this.wheelRear, { x: this.spawnX - WHEEL_OFFSET_X, y: restY });
+    Body.setPosition(this.wheelFront, { x: this.spawnX + WHEEL_OFFSET_X, y: restY });
+    this.nosFuel = 1;
+    this.nosActive = false;
+    this.nosLockedOut = false;
   }
 }
 
-export { CHASSIS_WIDTH, CHASSIS_HEIGHT, WHEEL_RADIUS };
+export { CHASSIS_WIDTH, CHASSIS_HEIGHT, WHEEL_RADIUS, WHEEL_OFFSET_X, WHEEL_OFFSET_Y };

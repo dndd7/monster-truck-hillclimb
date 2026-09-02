@@ -49,6 +49,8 @@ html, body {
 
 #hud-left {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -66,6 +68,26 @@ html, body {
 
 #speed {
   color: #ffd27a;
+}
+
+#nos-meter {
+  width: clamp(64px, 20vmin, 96px);
+  height: clamp(10px, 3vmin, 14px);
+  border-radius: 999px;
+  background: rgba(20, 22, 30, 0.55);
+  padding: 2px;
+}
+
+#nos-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4fa8ff, #a06bff);
+  transition: width 0.1s linear;
+}
+
+#nos-fill.empty {
+  background: #4a4d54;
 }
 
 #hud-right {
@@ -120,6 +142,19 @@ html, body {
 .ctrl-btn:active,
 .ctrl-btn.active {
   background: rgba(232, 84, 62, 0.85);
+}
+
+#btn-nos {
+  width: clamp(46px, 13vmin, 60px);
+  height: clamp(46px, 13vmin, 60px);
+  align-self: center;
+  font-weight: 800;
+  font-size: clamp(1rem, 4vmin, 1.3rem);
+}
+
+#btn-nos:active,
+#btn-nos.active {
+  background: rgba(120, 90, 255, 0.9);
 }
 
 #overlay {
